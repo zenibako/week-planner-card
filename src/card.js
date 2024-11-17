@@ -79,6 +79,7 @@ export class WeekPlannerCard extends LitElement {
     _hideTodayWithoutEvents;
     _filter;
     _combineSimilarEvents;
+    _combineAdjacentEvents;
     _showLegend;
     _actions;
 
@@ -131,6 +132,7 @@ export class WeekPlannerCard extends LitElement {
         this._hideTodayWithoutEvents = config.hideTodayWithoutEvents ?? false;
         this._filter = config.filter ?? false;
         this._combineSimilarEvents = config.combineSimilarEvents ?? false;
+        this._combineAdjacentEvents = config.combineAdjacentEvents ?? false;
         this._showLegend = config.showLegend ?? false;
         this._actions = config.actions ?? false;
         if (config.locale) {
@@ -597,10 +599,31 @@ export class WeekPlannerCard extends LitElement {
         if (!this._events.hasOwnProperty(dateKey)) {
             this._events[dateKey] = [];
         }
+        
+        const getEventKey = (start, end, summary, calendar) => {
+            if (this._combineSimilarEvents) {
+                const similarEvent = Object.values(this._calendarEvents).find(
+                    (similar) => (start === similar.start) && (end === similar.end)
+                )
+            
+                const similarSummary = summary ?? similarEvent?.summary    
+                return `${startDate.toISO()}-${endDate.toISO()}-${similarSummary}`;
+            }
 
-        let eventKey = startDate.toISO() + '-' + endDate.toISO() + '-' + event.summary;
-        if (!this._combineSimilarEvents) {
-            eventKey = startDate.toISO() + '-' + endDate.toISO() + '-' + event.summary + '-' + calendar.entity;
+            return `${start.toISO()}-${end.toISO()}-${summary}-${calendar}`;
+        }
+
+        const eventKey = getEventKey(startDate, endDate, event.summary, calendar.entity)
+
+        if (this._combineAdjacentEvents) {
+            const adjacentEvent = Object.values(this._calendarEvents).find(
+                (adjacent) => (startDate === adjacent.end) && (calendar.entity === adjacent.calendar) && (event.location === adjacent.location)
+            )
+            if (adjacentEvent) {
+                const adjacentEventKey = getEventKey(adjacentEvent.start, adjacentEvent.end, adjacentEvent.summary, adjacentEvent.calendar)
+                const summary = event.summary && adjacentEvent.summary ? `${adjacentEvent.summary} + ${event.summary}` : event.summary ?? adjacentEvent.summary
+                this._calendarEvents[adjacentEventKey] = { ...adjacentEvent, summary, end: endDate }
+            }
         }
 
         if (this._calendarEvents.hasOwnProperty(eventKey)) {
